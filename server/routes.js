@@ -3,7 +3,7 @@ import Controller from './controller.js';
 
 const controller = new Controller();
 
-const { location, pages: { homeHtml, controllerHtml } } = config;
+const { location, pages: { homeHtml, controllerHtml }, constants: { CONTENT_TYPE }} = config;
 
 export const routes = async (request, response) => {
     const { method, url } = request;
@@ -28,9 +28,41 @@ export const routes = async (request, response) => {
         return stream.pipe(response);
     }
 
-    return response.end('hello');
+    if (method === 'GET'){
+        const { stream, type } = await controller.getFileStream(url);
+
+        const contentType = CONTENT_TYPE[type];
+
+        if (contentType) {
+            response.writeHead(200, {
+                'ContentType': CONTENT_TYPE[type]
+            })
+        }
+
+        return stream.pipe(response);
+    }   
+
+    response.writeHead(404)
+    return response.end();
 };
 
-export const handler = (request, response) => {
-    return routes(request, response).catch(err => console.log(err))
+const handleError = async (error, response) => {
+    if (error.message.includes('ENOENT')) {
+        console.log('asset no found', error);
+
+        response.writeHead(404);
+
+        return response.end();
+    }
+
+    console.log('caught error on API', error);
+
+    response.writeHead(500);
+
+    return response.end();
+};
+
+
+export const handler = async (request, response) => {
+    return routes(request, response).catch(error => handleError(error, response));
 };
